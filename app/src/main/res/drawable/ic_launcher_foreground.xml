@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Microbus Shadow -->
+    <path
+        android:fillColor="#50000000"
+        android:pathData="M32,77 C32,75 76,75 76,77 C76,79 32,79 32,77 Z" />
+
+    <!-- Side Mirrors -->
+    <!-- Left Mirror -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M27,47 C27,45 31,45 31,47 L31,52 L27,51 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M28,47 L30,47 L30,51 L28,50 Z" />
+
+    <!-- Right Mirror -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M77,47 C77,45 81,45 81,47 L81,51 L77,52 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M78,47 L80,47 L80,50 L78,51 Z" />
+
+    <!-- Wheels -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M32,67 C32,65 39,65 39,67 L39,75 C39,76 32,76 32,75 Z" />
+    <path
+        android:fillColor="#64748B"
+        android:pathData="M34,69 L37,69 L37,73 L34,73 Z" />
+
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M69,67 C69,65 76,65 76,67 L76,75 C76,76 69,76 69,75 Z" />
+    <path
+        android:fillColor="#64748B"
+        android:pathData="M71,69 L74,69 L74,73 L71,73 Z" />
+
+    <!-- Main White Microbus Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,29 C33,29 31,31 31,34 L31,69 C31,71 33,72 36,72 L72,72 C75,72 77,71 77,69 L77,34 C77,31 75,29 72,29 Z" />
+
+    <!-- Egyptian Microbus Monofia Blue Stripe -->
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M31,51 L77,51 L77,56 L31,56 Z" />
+
+    <!-- Top Destination Roof Sign (Egyptian Microbus Sign box) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M42,23 L66,23 C68,23 68,24 68,25 L68,29 L40,29 L40,25 C40,24 40,23 42,23 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,25 L64,25 L64,27.5 L44,27.5 Z" />
+    <!-- Arabic text representation / sign detail -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M46,26 h3 v0.8 h-3 z M51,26 h6 v0.8 h-6 z M59,26 h3 v0.8 h-3 z" />
+
+    <!-- Windshield -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M37,33 L71,33 C73,33 74,34 74,36 L74,47 L34,47 L34,36 C34,34 35,33 37,33 Z" />
+    <!-- Glass Reflection -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M37,33 L50,33 L38,47 L34,47 Z" />
+
+    <!-- Headlights -->
+    <!-- Left Headlight -->
+    <path
+        android:fillColor="#FDE047"
+        android:pathData="M35,58 L42,58 C43,58 43,59 43,60 L43,63 C43,64 42,64 41,64 L35,64 C34,64 33,63 33,62 L33,60 C33,59 34,58 35,58 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M37,59.5 L41,59.5 L41,62.5 L37,62.5 Z" />
+
+    <!-- Right Headlight -->
+    <path
+        android:fillColor="#FDE047"
+        android:pathData="M66,58 L73,58 C74,58 75,59 75,60 L75,62 C75,63 74,64 73,64 L67,64 C66,64 65,63 65,62 L65,60 C65,59 66,58 67,58 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M67,59.5 L71,59.5 L71,62.5 L67,62.5 Z" />
+
+    <!-- Radiator Grille -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M45,58 L63,58 L63,65 L45,65 Z" />
+    <path
+        android:strokeColor="#94A3B8"
+        android:strokeWidth="0.8"
+        android:pathData="M46,60.5 L62,60.5 M46,62.5 L62,62.5 M46,64.5 L62,64.5" />
+
+    <!-- Center Emblem Badge -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M54,51.5 C55.1,51.5 56,52.4 56,53.5 C56,54.6 55.1,55.5 54,55.5 C52.9,55.5 52,54.6 52,53.5 C52,52.4 52.9,51.5 54,51.5 Z" />
+
+    <!-- Bumper -->
+    <path
+        android:fillColor="#334155"
+        android:pathData="M32,66 L76,66 C77.5,66 78,67 78,68 L78,70 C78,71.5 77,71.5 75.5,71.5 L32.5,71.5 C31,71.5 30,71 30,70 L30,68 C30,67 30.5,66 32,66 Z" />
+
+    <!-- License Plate -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M48,67.5 L60,67.5 L60,70.5 L48,70.5 Z" />
+    <path
+        android:fillColor="#1D4ED8"
+        android:pathData="M48,67.5 L60,67.5 L60,68.5 L48,68.5 Z" />
+
+    <!-- Arcade Fare Collectible Coin Floating (Top Right) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M76,21 C79.3,21 82,23.7 82,27 C82,30.3 79.3,33 76,33 C72.7,33 70,30.3 70,27 C70,23.7 72.7,21 76,21 Z" />
+    <path
+        android:fillColor="#FDE047"
+        android:pathData="M76,22.5 C78.5,22.5 80.5,24.5 80.5,27 C80.5,29.5 78.5,31.5 76,31.5 C73.5,31.5 71.5,29.5 71.5,27 C71.5,24.5 73.5,22.5 76,22.5 Z" />
+    <!-- Pound/Fare sign symbol inside coin -->
+    <path
+        android:fillColor="#B45309"
+        android:pathData="M74.5,25 h3 v1 h-2 v1.5 h1.5 v1 h-1.5 v2 h-1 z" />
+
+    <!-- Speed Action Lines (Arcade feel) -->
+    <path
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M23,38 L27,38 M21,46 L25,46" />
+</vector>
