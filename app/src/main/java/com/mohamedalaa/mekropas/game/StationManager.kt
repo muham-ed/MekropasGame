@@ -5,7 +5,7 @@ import kotlin.random.Random
 
 /**
  * Manages periodic roadside passenger pickup station spawning, alignment detection,
- * commuter collection, fare accumulation, and floating fare animation popups.
+ * commuter collection, capacity limits, fare accumulation, and floating fare animation popups.
  */
 class StationManager {
 
@@ -19,17 +19,12 @@ class StationManager {
     var lastCollectedStationName: String = ""
         private set
 
+    var maxPassengerCapacity: Int = 14
+    var currentRoute: RouteModel = RouteManager.routes[0]
+    var onCoinCollected: (() -> Unit)? = null
+
     private var distanceSinceLastStation = 0f
     private val stationSpawnDistance = 850f // Distance in scroll pixels between stations
-
-    private val stationNames = listOf(
-        "موقف شبين الكوم",
-        "قرية البتانون",
-        "قرية طملاي",
-        "قرية دمليج",
-        "موقف منوف",
-        "موقف الشهداء"
-    )
     private var stationIndex = 0
 
     fun update(road: Road, player: PlayerMicrobus) {
@@ -57,21 +52,31 @@ class StationManager {
                 val isInRightLane = player.x >= rightLaneBoundary
 
                 if (isYAligned && isInRightLane) {
-                    // Collect passengers!
                     station.collect()
-                    val earnedFare = station.totalFare
-                    totalFareEgp += earnedFare
-                    totalPassengers += station.commuterCount
-                    lastCollectedStationName = station.name
 
-                    // Create floating fare text animation
-                    farePopups.add(
-                        FarePopup(
-                            text = "+$earnedFare ج.م الأجرة 💰",
-                            x = player.x,
-                            y = player.y - 50f
+                    if (totalPassengers + station.commuterCount <= maxPassengerCapacity) {
+                        val earnedFare = station.totalFare
+                        totalFareEgp += earnedFare
+                        totalPassengers += station.commuterCount
+                        lastCollectedStationName = station.name
+                        onCoinCollected?.invoke()
+
+                        farePopups.add(
+                            FarePopup(
+                                text = "+$earnedFare ج.م الأجرة 💰",
+                                x = player.x,
+                                y = player.y - 50f
+                            )
                         )
-                    )
+                    } else {
+                        farePopups.add(
+                            FarePopup(
+                                text = "الميكروباص مليان! 🚌",
+                                x = player.x,
+                                y = player.y - 50f
+                            )
+                        )
+                    }
                 }
             }
 
@@ -92,10 +97,11 @@ class StationManager {
     }
 
     private fun spawnStation(road: Road) {
-        val name = stationNames[stationIndex % stationNames.size]
+        val stationList = currentRoute.stations
+        val name = stationList[stationIndex % stationList.size]
         stationIndex++
 
-        val commuters = Random.nextInt(3, 7) // 3 to 6 waiting commuters
+        val commuters = Random.nextInt(2, 5) // 2 to 4 waiting commuters
         val farePerHead = Random.nextInt(5, 9)  // 5 to 8 EGP per commuter
 
         val stationX = road.roadRight + 12f

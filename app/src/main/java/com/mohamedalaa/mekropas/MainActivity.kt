@@ -19,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -26,40 +27,145 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.mohamedalaa.mekropas.game.GameStorage
 import com.mohamedalaa.mekropas.game.GameView
+import com.mohamedalaa.mekropas.game.RouteManager
+import com.mohamedalaa.mekropas.game.SoundManager
+import com.mohamedalaa.mekropas.ui.GarageScreen
+import com.mohamedalaa.mekropas.ui.MainMenuScreen
+import com.mohamedalaa.mekropas.ui.RouteSelectionScreen
 import com.mohamedalaa.mekropas.ui.theme.MekropasTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+enum class Screen {
+    MAIN_MENU,
+    GARAGE,
+    ROUTE_SELECTION,
+    GAME
+}
 
 class MainActivity : ComponentActivity() {
+    private var soundManager: SoundManager? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val sound = SoundManager(applicationContext)
+        soundManager = sound
+
         setContent {
             MekropasTheme {
-                MekropasGameScreen()
+                MekropasAppNavigation(sound)
             }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        soundManager?.pauseMusic()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        soundManager?.release()
+        soundManager = null
+    }
+}
+
+@Composable
+fun MekropasAppNavigation(soundManager: SoundManager) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val gameStorage = remember { GameStorage(context) }
+
+    var currentScreen by remember { mutableStateOf(Screen.MAIN_MENU) }
+
+    val highestFare by gameStorage.highestFareFlow.collectAsState(initial = 0)
+    val totalCoins by gameStorage.totalCoinsFlow.collectAsState(initial = 0)
+    val ownedVans by gameStorage.ownedVansFlow.collectAsState(initial = setOf(GameStorage.DEFAULT_VAN))
+    val selectedVanId by gameStorage.selectedVanFlow.collectAsState(initial = GameStorage.DEFAULT_VAN)
+    val selectedRouteId by gameStorage.selectedRouteFlow.collectAsState(initial = GameStorage.DEFAULT_ROUTE)
+
+    when (currentScreen) {
+        Screen.MAIN_MENU -> {
+            MainMenuScreen(
+                highestFare = highestFare,
+                totalCoins = totalCoins,
+                onStartGameClick = { currentScreen = Screen.GAME },
+                onGarageClick = { currentScreen = Screen.GARAGE },
+                onRouteSelectClick = { currentScreen = Screen.ROUTE_SELECTION }
+            )
+        }
+        Screen.GARAGE -> {
+            GarageScreen(
+                totalCoins = totalCoins,
+                ownedVans = ownedVans,
+                selectedVanId = selectedVanId,
+                onSelectVan = { vanId ->
+                    scope.launch { gameStorage.setSelectedVan(vanId) }
+                },
+                onBuyVan = { van ->
+                    scope.launch { gameStorage.unlockVan(van.id, van.costEgp) }
+                },
+                onBackClick = { currentScreen = Screen.MAIN_MENU }
+            )
+        }
+        Screen.ROUTE_SELECTION -> {
+            RouteSelectionScreen(
+                selectedRouteId = selectedRouteId,
+                onSelectRoute = { routeId ->
+                    scope.launch { gameStorage.setSelectedRoute(routeId) }
+                },
+                onStartGame = { currentScreen = Screen.GAME },
+                onBackClick = { currentScreen = Screen.MAIN_MENU }
+            )
+        }
+        Screen.GAME -> {
+            MekropasGameScreen(
+                gameStorage = gameStorage,
+                soundManager = soundManager,
+                selectedVanId = selectedVanId,
+                selectedRouteId = selectedRouteId,
+                onExitGame = {
+                    soundManager.pauseMusic()
+                    currentScreen = Screen.MAIN_MENU
+                }
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MekropasGameScreen() {
+fun MekropasGameScreen(
+    gameStorage: GameStorage,
+    soundManager: SoundManager,
+    selectedVanId: String,
+    selectedRouteId: String,
+    onExitGame: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
     var gameViewInstance by remember { mutableStateOf<GameView?>(null) }
 
     var fareAmount by remember { mutableIntStateOf(0) }
@@ -67,7 +173,10 @@ fun MekropasGameScreen() {
     var progressPercent by remember { mutableFloatStateOf(0f) }
     var distanceMeters by remember { mutableIntStateOf(0) }
 
-    // Poll GameView state every 50ms for smooth real-time HUD updates
+    val currentRoute = remember(selectedRouteId) {
+        RouteManager.getRouteById(selectedRouteId)
+    }
+
     LaunchedEffect(gameViewInstance) {
         while (isActive) {
             gameViewInstance?.let { view ->
@@ -86,10 +195,15 @@ fun MekropasGameScreen() {
             TopAppBar(
                 title = {
                     Text(
-                        text = "ميكروباص المنوفية 🚐",
-                        style = MaterialTheme.typography.titleLarge,
+                        text = "🚐 ${currentRoute.title}",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onExitGame) {
+                        Text(text = "🏠", fontSize = 20.sp)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -103,17 +217,18 @@ fun MekropasGameScreen() {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Main SurfaceView Game Engine Canvas
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { context ->
                     GameView(context).also { view ->
+                        view.configureEngine(gameStorage, soundManager, scope)
+                        view.applyVanAndRoute(selectedVanId, selectedRouteId)
                         gameViewInstance = view
                     }
                 }
             )
 
-            // Top HUD Overlay Card (Material Design 3)
+            // Top HUD Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -128,13 +243,11 @@ fun MekropasGameScreen() {
                 Column(
                     modifier = Modifier.padding(12.dp)
                 ) {
-                    // Fare and Passenger Stats Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Fare Counter
                         Box(
                             modifier = Modifier
                                 .background(
@@ -147,11 +260,10 @@ fun MekropasGameScreen() {
                                 text = "💵 الأجرة: $fareAmount ج.م",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 14.sp
                             )
                         }
 
-                        // Passengers Counter
                         Box(
                             modifier = Modifier
                                 .background(
@@ -164,11 +276,10 @@ fun MekropasGameScreen() {
                                 text = "👥 الركاب: $passengerCount",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 14.sp
                             )
                         }
 
-                        // Distance Traveled
                         Box(
                             modifier = Modifier
                                 .background(
@@ -181,34 +292,33 @@ fun MekropasGameScreen() {
                                 text = "🛣️ $distanceMeters م",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 14.sp
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Route Progress Bar
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "شبين الكوم",
+                            text = currentRoute.startTerminal,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
-                            text = "خط السير: ${progressPercent.toInt()}%",
+                            text = "التقدم: ${progressPercent.toInt()}%",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
 
                         Text(
-                            text = "الشهداء",
+                            text = currentRoute.endTerminal,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -227,10 +337,10 @@ fun MekropasGameScreen() {
                 }
             }
 
-            // Horn Button / Klakson FAB
+            // Klakson FAB
             FloatingActionButton(
                 onClick = {
-                    gameViewInstance?.playerMicrobus?.honk()
+                    gameViewInstance?.triggerHorn()
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -239,7 +349,7 @@ fun MekropasGameScreen() {
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer
             ) {
                 Text(
-                    text = "🔊 كلكس",
+                    text = "🔊 كلاكس",
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )

@@ -5,8 +5,8 @@ import android.util.Log
 import android.view.SurfaceHolder
 
 /**
- * High-performance 60 FPS Game Loop Thread for Mekropas.
- * Handles game state updates and Surface Canvas rendering safely.
+ * High-precision 60 FPS Game Loop Thread for Mekropas.
+ * Uses System.nanoTime() with fixed timestep logic to eliminate stutter/jank.
  */
 class GameThread(
     private val surfaceHolder: SurfaceHolder,
@@ -18,32 +18,46 @@ class GameThread(
         private set
 
     private val targetFps = 60
-    private val targetFrameTimeMs = 1000L / targetFps
+    private val targetFrameTimeNs = 1_000_000_000L / targetFps
 
     fun setRunning(running: Boolean) {
         isRunning = running
     }
 
     override fun run() {
-        Log.d(TAG, "Game thread started loop")
-        var startTime: Long
-        var timeMillis: Long
-        var waitTime: Long
+        Log.d(TAG, "Game thread started high-precision loop")
+        var lastTime = System.nanoTime()
+        var accumulator = 0L
 
         while (isRunning) {
-            startTime = System.currentTimeMillis()
-            var canvas: Canvas? = null
+            val now = System.nanoTime()
+            var elapsedTime = now - lastTime
+            lastTime = now
 
+            // Cap elapsed time to 250ms to prevent spiral of death on lag spikes
+            if (elapsedTime > 250_000_000L) {
+                elapsedTime = 250_000_000L
+            }
+
+            accumulator += elapsedTime
+
+            // Fixed timestep updates
+            while (accumulator >= targetFrameTimeNs) {
+                gameEngine.updateGame()
+                accumulator -= targetFrameTimeNs
+            }
+
+            // Render current frame
+            var canvas: Canvas? = null
             try {
                 canvas = surfaceHolder.lockCanvas()
                 if (canvas != null) {
                     synchronized(surfaceHolder) {
-                        gameEngine.updateGame()
                         gameEngine.drawGame(canvas)
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error in game loop", e)
+                Log.e(TAG, "Error in game render loop", e)
             } finally {
                 if (canvas != null) {
                     try {
@@ -54,12 +68,12 @@ class GameThread(
                 }
             }
 
-            timeMillis = System.currentTimeMillis() - startTime
-            waitTime = targetFrameTimeMs - timeMillis
-
-            if (waitTime > 0) {
+            // High precision frame pacing sleep
+            val renderDuration = System.nanoTime() - now
+            val sleepTimeNs = targetFrameTimeNs - renderDuration
+            if (sleepTimeNs > 2_000_000L) { // Only sleep if more than 2ms remaining
                 try {
-                    sleep(waitTime)
+                    sleep(sleepTimeNs / 1_000_000L, (sleepTimeNs % 1_000_000L).toInt())
                 } catch (e: InterruptedException) {
                     // Thread interrupted during sleep
                 }

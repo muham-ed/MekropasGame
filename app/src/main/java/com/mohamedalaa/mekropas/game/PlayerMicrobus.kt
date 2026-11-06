@@ -18,6 +18,8 @@ class PlayerMicrobus {
     var width: Float = 110f
     var height: Float = 200f
 
+    var speedMultiplier: Float = 1.0f
+
     var targetX: Float = 0f
     private var tiltAngle: Float = 0f
 
@@ -35,10 +37,10 @@ class PlayerMicrobus {
         style = Paint.Style.FILL
     }
     private val redStripePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E53935") // Red stripe
+        color = Color.parseColor("#E53935") // Primary stripe
     }
     private val blueStripePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1E88E5") // Blue stripe
+        color = Color.parseColor("#1E88E5") // Secondary stripe
     }
     private val windowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#263238") // Dark tinted glass
@@ -83,6 +85,16 @@ class PlayerMicrobus {
         strokeWidth = 6f
     }
 
+    fun applyVanModel(van: VanModel) {
+        speedMultiplier = van.speedMultiplier
+        try {
+            bodyPaint.color = Color.parseColor(van.primaryColorHex)
+            redStripePaint.color = Color.parseColor(van.stripeColorHex)
+        } catch (e: Exception) {
+            // Fallback
+        }
+    }
+
     fun initPosition(centerX: Float, bottomY: Float, vehicleWidth: Float = 110f, vehicleHeight: Float = 200f) {
         width = vehicleWidth
         height = vehicleHeight
@@ -100,7 +112,7 @@ class PlayerMicrobus {
     /**
      * Steer towards target position or steer continuously in direction (-1 to +1).
      */
-    fun steer(direction: Float, roadLeft: Float, roadRight: Float, speedMultiplier: Float = 1.0f) {
+    fun steer(direction: Float, roadLeft: Float, roadRight: Float) {
         val steerSpeed = 22f * speedMultiplier
         val minX = roadLeft + width / 2f
         val maxX = roadRight - width / 2f

@@ -5,12 +5,14 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 enum class GameState {
     RUNNING,
@@ -19,7 +21,7 @@ enum class GameState {
 
 /**
  * Custom SurfaceView providing the main game canvas, dynamic traffic simulation,
- * roadside passenger pickup stations, fare calculation, collision detection, and Game Over state.
+ * roadside passenger pickup stations, fare calculation, collision detection, audio, and persistent storage integration.
  */
 class GameView @JvmOverloads constructor(
     context: Context,
@@ -34,6 +36,10 @@ class GameView @JvmOverloads constructor(
     val trafficManager = TrafficManager()
     val stationManager = StationManager()
 
+    var soundManager: SoundManager? = null
+    var gameStorage: GameStorage? = null
+    var mainScope: CoroutineScope? = null
+
     var gameState = GameState.RUNNING
         private set
 
@@ -42,21 +48,22 @@ class GameView @JvmOverloads constructor(
 
     val totalFareEgp: Int get() = stationManager.totalFareEgp
     val totalPassengers: Int get() = stationManager.totalPassengers
-    val routeProgressPercent: Float get() = ((distanceMeters.toFloat() / 3000f) * 100f).coerceIn(0f, 100f)
+    val routeProgressPercent: Float
+        get() = ((distanceMeters.toFloat() / stationManager.currentRoute.totalDistanceMeters) * 100f).coerceIn(0f, 100f)
 
     private var activeTouchX: Float = -1f
     private var isTouching: Boolean = false
-    private var touchDirection: Float = 0f // -1f for left, +1f for right, 0f for static
+    private var touchDirection: Float = 0f
 
     // Game Over Overlay Paints
     private val dimOverlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(200, 15, 15, 20)
     }
     private val dialogBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#B71C1C") // Deep Egyptian Alert Red
+        color = Color.parseColor("#B71C1C")
     }
     private val dialogBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#FFD54F") // Vibrant Gold border
+        color = Color.parseColor("#FFD54F")
         strokeWidth = 6f
         style = Paint.Style.STROKE
     }
@@ -82,6 +89,30 @@ class GameView @JvmOverloads constructor(
     init {
         holder.addCallback(this)
         isFocusable = true
+
+        stationManager.onCoinCollected = {
+            soundManager?.playCoin()
+        }
+    }
+
+    fun configureEngine(storage: GameStorage, sound: SoundManager, scope: CoroutineScope) {
+        this.gameStorage = storage
+        this.soundManager = sound
+        this.mainScope = scope
+    }
+
+    fun applyVanAndRoute(vanId: String, routeId: String) {
+        val van = GarageManager.getVanById(vanId)
+        val route = RouteManager.getRouteById(routeId)
+
+        playerMicrobus.applyVanModel(van)
+        stationManager.maxPassengerCapacity = van.maxPassengers
+        stationManager.currentRoute = route
+    }
+
+    fun triggerHorn() {
+        playerMicrobus.honk()
+        soundManager?.playHorn()
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -97,6 +128,7 @@ class GameView @JvmOverloads constructor(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.d(TAG, "surfaceDestroyed")
+        soundManager?.pauseMusic()
         stopThread()
     }
 
@@ -133,6 +165,7 @@ class GameView @JvmOverloads constructor(
         )
         trafficManager.reset()
         stationManager.reset()
+        soundManager?.startMusic()
     }
 
     override fun performClick(): Boolean {
@@ -156,9 +189,9 @@ class GameView @JvmOverloads constructor(
 
                 val halfWidth = width / 2f
                 touchDirection = if (activeTouchX < halfWidth) {
-                    -1f // Touch left half -> steer left
+                    -1f
                 } else {
-                    1f  // Touch right half -> steer right
+                    1f
                 }
 
                 playerMicrobus.targetX = activeTouchX.coerceIn(
@@ -180,33 +213,30 @@ class GameView @JvmOverloads constructor(
     override fun updateGame() {
         when (gameState) {
             GameState.RUNNING -> {
-                // Update road animation
                 road.update()
+                distanceMeters += (road.scrollSpeed * 0.1f * playerMicrobus.speedMultiplier).toInt()
 
-                // Increment distance
-                distanceMeters += (road.scrollSpeed * 0.1f).toInt()
-
-                // Update player steering
                 playerMicrobus.steer(
                     direction = if (isTouching) touchDirection else 0f,
                     roadLeft = road.roadLeft,
                     roadRight = road.roadRight
                 )
 
-                // Update passenger pickup stations and fare mechanics
                 stationManager.update(road, playerMicrobus)
-
-                // Update NPC traffic
                 trafficManager.update(road)
 
-                // Collision Detection with NPC traffic
                 if (trafficManager.checkCollision(playerMicrobus)) {
                     Log.d(TAG, "Collision detected! Triggering GAME_OVER state.")
                     gameState = GameState.GAME_OVER
+                    soundManager?.playCrash()
+                    soundManager?.pauseMusic()
+
+                    mainScope?.launch(Dispatchers.IO) {
+                        gameStorage?.recordTripResult(totalFareEgp)
+                    }
                 }
             }
             GameState.GAME_OVER -> {
-                // Slow down road to a complete stop
                 if (road.scrollSpeed > 0f) {
                     road.scrollSpeed = (road.scrollSpeed - 0.8f).coerceAtLeast(0f)
                     road.update()
@@ -216,22 +246,12 @@ class GameView @JvmOverloads constructor(
     }
 
     override fun drawGame(canvas: Canvas) {
-        // Background
         canvas.drawColor(Color.parseColor("#1B5E20"))
-
-        // Render Road
         road.draw(canvas)
-
-        // Render Passenger Pickup Stations
         stationManager.draw(canvas, road)
-
-        // Render NPC Traffic
         trafficManager.draw(canvas)
-
-        // Render Player Microbus
         playerMicrobus.draw(canvas)
 
-        // Render Game Over Overlay if crashed
         if (gameState == GameState.GAME_OVER) {
             drawGameOverOverlay(canvas)
         }
@@ -241,10 +261,8 @@ class GameView @JvmOverloads constructor(
         val w = width.toFloat()
         val h = height.toFloat()
 
-        // 1. Semi-transparent dark background
         canvas.drawRect(0f, 0f, w, h, dimOverlayPaint)
 
-        // 2. Center Alert Dialog Box
         val dialogW = w * 0.88f
         val dialogH = h * 0.45f
         val dialogLeft = (w - dialogW) / 2f
@@ -254,14 +272,10 @@ class GameView @JvmOverloads constructor(
         canvas.drawRoundRect(dialogRect, 28f, 28f, dialogBgPaint)
         canvas.drawRoundRect(dialogRect, 28f, 28f, dialogBorderPaint)
 
-        // 3. Header Text: "حادثة! (Crash!)"
         val centerX = w / 2f
         canvas.drawText("حادثة! (Crash)", centerX, dialogTop + 80f, titleTextPaint)
-
-        // 4. Subtitle
         canvas.drawText("اصطدمت بالمركبة على طريق المنوفية", centerX, dialogTop + 140f, subtitleTextPaint)
 
-        // 5. Game Stats Summary
         val fareText = "الأجرة المجمعة: $totalFareEgp ج.م 💰"
         val passengersText = "إجمالي الركاب: $totalPassengers ركب 👥"
         val distanceText = "المسافة: $distanceMeters متر 🛣️"
@@ -270,7 +284,6 @@ class GameView @JvmOverloads constructor(
         canvas.drawText(passengersText, centerX, dialogTop + 250f, subtitleTextPaint)
         canvas.drawText(distanceText, centerX, dialogTop + 300f, subtitleTextPaint)
 
-        // 6. Action prompt: "اضغط على الشاشة لإعادة اللعب"
         val promptBoxRect = RectF(
             dialogLeft + 40f,
             dialogTop + dialogH - 85f,
@@ -285,10 +298,12 @@ class GameView @JvmOverloads constructor(
     }
 
     fun pause() {
+        soundManager?.pauseMusic()
         stopThread()
     }
 
     fun resume() {
+        soundManager?.startMusic()
         startThread()
     }
 
